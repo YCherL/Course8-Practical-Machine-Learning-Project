@@ -1,0 +1,145 @@
+---
+title: "Machine Learning Project"
+author: "Yuan Li"
+date: '2022-07-19'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Background 
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+# Data
+The training data for this project are available here:
+
+- https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+- https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+# Load the librarys
+```{r}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(randomForest)
+library(corrplot)
+library(gbm)
+
+```
+
+# Data Preprocessing
+```{r}
+# import the data
+traindf = read.csv("pml-training.csv", header = TRUE)
+testdf = read.csv("pml-testing.csv", header = TRUE)
+
+# view the dimension of the dataset
+dim(traindf)
+dim(testdf)
+
+```
+The training data set contains 19622 observations and 160 variables, however, the variable "classe"  is the outcome to predict. The testing data set contains 20 observations and 160 variables. 
+
+## clean the data
+```{r}
+traindf <- traindf[,colMeans(is.na(traindf)) < .9] 
+traindf <- traindf[,-c(1:7)] 
+
+nvz <- nearZeroVar(traindf)
+traindf <- traindf[,-nvz]
+dim(traindf)
+
+```
+
+After clean the train dataset, there are 19622 observations and 53 variables. The "classe" variable is still in the cleaned training set.
+
+## Slice the data
+Split the cleaned training set into a pure training data set (70%) and a validation data set (30%).
+```{r}
+set.seed(100)
+inTrain = createDataPartition(y=traindf$classe, p=0.7, list=F)
+train = traindf[inTrain,]
+valid = traindf[-inTrain,]
+control <- trainControl(method="cv", number=3, verboseIter=F)
+
+
+```
+
+## correlation plot
+```{r}
+corrPlot <- cor(train[, -length(names(train))])
+corrplot(corrPlot, method="color")
+```
+
+
+# Data Modeling
+For this Project, it is going to fit three prediction models:
+
+1. Random Forests
+2. Decision Tree
+3. Generalized Boosted Model (GBM)
+
+## Random Forests
+```{r}
+# model
+modRF = train(classe~., data=train, method="rf", trControl = control, tuneLength = 5)
+
+# plot
+plot(modRF)
+
+#prediction
+predRF = predict(modRF, valid)
+cfmRF = confusionMatrix(factor(valid$classe),predRF)
+cfmRF
+
+```
+
+## Decision Tree
+```{r}
+# model
+modTree = train(classe~., data=train, method="rpart", trControl = control, tuneLength = 5)
+
+# plot
+fancyRpartPlot(modTree$finalModel)
+
+
+# prediction
+predTree = predict(modTree, valid)
+confusionMatrix(predTree, factor(valid$classe))
+
+
+```
+
+
+## Generalized Boosted Model (GBM)
+```{r}
+# model
+modB = train(classe~., data=train, method="gbm", trControl = control, tuneLength = 5, verbose = F)
+
+
+# plot
+plot(modB)
+
+# prediction
+predB = predict(modB, valid)
+cfmB = confusionMatrix(actor(valid$classe),predB)
+cfmB
+```
+
+
+# Predicting for Test dataset
+```{r}
+
+pred <- predict(modRF, testdf)
+pred
+```
+
